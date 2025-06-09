@@ -48,7 +48,6 @@ void displayCompany(const Company& company) {
               << "\n";
 }
 
-// Função para exibir o log de atividades
 void displayLog() {
     std::cout << "\n=== Log de Atividades ===\n\n";
     std::ifstream logFile("log.txt");

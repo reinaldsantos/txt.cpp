@@ -130,7 +130,6 @@ void addNewLoan(DatabaseManager& dbManager) {
     }
 }
 
-// Função para exibir o menu principal
 void displayMenu() {
     std::cout << "\n=== Sistema de Empréstimos ===\n"
               << "1. Visualizar histórico\n"

@@ -80,7 +80,7 @@ std::vector<Company> DatabaseManager::getAllCompanies() {
         bool loanApproved = sqlite3_column_int(stmt, 4) != 0;
         Company company(name, location, employeeName, loanAmount);
         if (!loanApproved) {
-            // Força o status negado se não aprovado
+            
             *(bool*)((char*)&company + sizeof(std::string)*3 + sizeof(double)) = false;
         }
         companies.push_back(company);
