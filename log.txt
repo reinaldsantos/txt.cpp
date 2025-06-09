@@ -36,3 +36,4 @@ OBSERVAÇÕES:
 - Mantenha o arquivo em local seguro
 - Faça backup regularmente
 - Não modifique o arquivo manualmente 09/06/2025 16:07:25 | biel | fundao | jonn | R$ 7500.00 | Aprovado
+09/06/2025 16:29:03 | reinald  | local | reinald santos  | R$ 100000.00 | Aprovado
