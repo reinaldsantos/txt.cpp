@@ -10,79 +10,53 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <limits>
 #include <fstream>
-#include <ctime>
+#include <limits>
 #ifdef _WIN32
 #include <windows.h>
 #endif
 #include "database/DatabaseManager.h"
 #include "models/Company.h"
-
-// Função para obter a data e hora atual
-std::string getCurrentDateTime() {
-    auto now = std::time(nullptr);
-    auto tm = *std::localtime(&now);
-    std::ostringstream oss;
-    oss << std::put_time(&tm, "%d/%m/%Y %H:%M:%S");
-    return oss.str();
-}
-
-// Função para registrar no arquivo de log
-void logActivity(const std::string& activity) {
-    std::ofstream logFile("log.txt", std::ios::app);
-    if (logFile.is_open()) {
-        logFile << getCurrentDateTime() << " | " << activity << "\n";
-        logFile.close();
-    }
-}
+#include "advanced_features.h"
 
 // Função para configurar o console para UTF-8
 bool setupConsole() {
-    #ifdef _WIN32
-        return SetConsoleOutputCP(CP_UTF8) != 0;
-    #else
-        return true;
-    #endif
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    return true;
+#else
+    return true;
+#endif
 }
 
-// Função para limpar o buffer de entrada
-void clearInputBuffer() {
-    std::cin.clear();
-    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-}
-
-// Função para exibir o cabeçalho da tabela
 void displayHeader() {
     std::cout << std::left
-              << std::setw(20) << "Empresa"
-              << std::setw(20) << "Local"
-              << std::setw(20) << "Funcionário"
-              << std::setw(15) << "Valor (€)"
+              << std::setw(30) << "Empresa"
+              << std::setw(20) << "Localização"
+              << std::setw(30) << "Funcionário"
+              << std::setw(15) << "Valor"
               << std::setw(10) << "Status"
               << "\n";
-    std::cout << std::string(85, '-') << "\n";
+    std::cout << std::string(105, '-') << "\n";
 }
 
-// Função para exibir os dados de uma empresa
 void displayCompany(const Company& company) {
     std::cout << std::left
-              << std::setw(20) << company.getName()
+              << std::setw(30) << company.getName()
               << std::setw(20) << company.getLocation()
-              << std::setw(20) << company.getEmployeeName()
-              << std::fixed << std::setprecision(2)
-              << std::setw(15) << company.getLoanAmount()
-              << std::setw(10) << (company.isLoanApproved() ? "Aprovado" : "Reprovado")
+              << std::setw(30) << company.getEmployeeName()
+              << std::setw(15) << std::fixed << std::setprecision(2) << company.getLoanAmount()
+              << std::setw(10) << (company.isLoanApproved() ? "Aprovado" : "Rejeitado")
               << "\n";
 }
 
-// Função para exibir o histórico de empréstimos
-void displayLoanHistory(DatabaseManager& dbManager) {
-    std::cout << "\n=== Histórico de Empréstimos ===\n\n";
-    
+void displayLog() {
+    std::cout << "\n=== Log de Empréstimos ===\n\n";
+    DatabaseManager dbManager("database/bank.db");
     auto companies = dbManager.getAllCompanies();
+    
     if (companies.empty()) {
-        std::cout << "Nenhum registro encontrado.\n";
+        std::cout << "Nenhum empréstimo registrado.\n";
         return;
     }
 
@@ -92,15 +66,17 @@ void displayLoanHistory(DatabaseManager& dbManager) {
     }
 }
 
-// Função para adicionar um novo empréstimo
 void addNewLoan(DatabaseManager& dbManager) {
     std::cout << "\n=== Novo Empréstimo ===\n\n";
     
-    std::string name, location, employeeName;
+    std::string name, cnpj, location, employeeName;
     double amount;
     
     std::cout << "Nome da empresa: ";
     std::getline(std::cin, name);
+    
+    std::cout << "CNPJ: ";
+    std::getline(std::cin, cnpj);
     
     std::cout << "Local: ";
     std::getline(std::cin, location);
@@ -108,34 +84,62 @@ void addNewLoan(DatabaseManager& dbManager) {
     std::cout << "Nome do funcionário: ";
     std::getline(std::cin, employeeName);
     
-    std::cout << "Valor do empréstimo (€): ";
+    std::cout << "Valor do empréstimo: ";
     while (!(std::cin >> amount) || amount <= 0) {
         std::cout << "Valor inválido. Digite novamente: ";
-        clearInputBuffer();
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
     }
-    clearInputBuffer();
+    std::cin.ignore();
 
     // Cria uma nova empresa e salva no banco de dados
-    Company newCompany(name, location, employeeName, amount);
+    Company newCompany(name, cnpj, location, employeeName, amount);
     if (dbManager.createCompany(newCompany)) {
         std::cout << "\nEmpréstimo registrado com sucesso!\n";
-        // Registra a atividade no log
-        std::ostringstream logEntry;
-        logEntry << name << " | " << location << " | " << employeeName 
-                 << " | € " << std::fixed << std::setprecision(2) << amount 
-                 << " | " << (newCompany.isLoanApproved() ? "Aprovado" : "Reprovado");
-        logActivity(logEntry.str());
     } else {
         std::cout << "\nErro ao registrar empréstimo.\n";
     }
 }
 
-void displayMenu() {
-    std::cout << "\n=== Sistema de Empréstimos ===\n"
-              << "1. Visualizar histórico\n"
-              << "2. Adicionar empréstimo\n"
-              << "0. Sair\n"
-              << "Escolha uma opção: ";
+void checkBalance(DatabaseManager& dbManager) {
+    std::cout << "\n=== Consultar Saldo ===\n\n";
+    
+    std::string cnpj;
+    std::cout << "CNPJ da empresa: ";
+    std::getline(std::cin, cnpj);
+    
+    double balance = dbManager.getCompanyBalance(cnpj);
+    if (balance >= 0) {
+        std::cout << "\nSaldo atual: R$ " << std::fixed << std::setprecision(2) << balance << "\n";
+    } else {
+        std::cout << "\nEmpresa não encontrada!\n";
+    }
+}
+
+void depositMoney(DatabaseManager& dbManager) {
+    std::cout << "\n=== Depositar Dinheiro ===\n\n";
+    
+    std::string cnpj;
+    double amount;
+    
+    std::cout << "CNPJ da empresa: ";
+    std::getline(std::cin, cnpj);
+    
+    std::cout << "Valor a depositar: R$ ";
+    while (!(std::cin >> amount) || amount <= 0) {
+        std::cout << "Valor inválido. Digite novamente: ";
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+    std::cin.ignore();
+    
+    if (dbManager.updateCompanyBalance(cnpj, amount)) {
+        std::cout << "\nDepósito realizado com sucesso!\n";
+        std::cout << "Novo saldo: R$ " << std::fixed << std::setprecision(2) 
+                  << dbManager.getCompanyBalance(cnpj) << "\n";
+    } else {
+        std::cout << "\nErro ao realizar depósito. Empresa não encontrada!\n";
+    }
 }
 
 int main() {
@@ -146,32 +150,62 @@ int main() {
             return 1;
         }
 
-        // Conecta ao banco de dados
-        DatabaseManager dbManager("bank.db");
-        
-        int choice;
-        do {
-            displayMenu();
-            while (!(std::cin >> choice)) {
-                std::cout << "Opção inválida. Digite novamente: ";
-                clearInputBuffer();
-            }
-            clearInputBuffer();
+        // Cria o diretório database se não existir
+        #ifdef _WIN32
+        system("if not exist database mkdir database");
+        #else
+        system("mkdir -p database");
+        #endif
+
+        while (true) {
+            std::cout << "\n=== Sistema Bancário ===\n\n";
+            std::cout << "1. Ver histórico de empréstimos\n";
+            std::cout << "2. Funcionalidades Avançadas\n";
+            std::cout << "3. Adicionar novo empréstimo\n";
+            std::cout << "4. Consultar saldo\n";
+            std::cout << "5. Depositar dinheiro\n";
+            std::cout << "0. Sair\n";
+            std::cout << "Escolha uma opção: ";
+
+            int choice;
+            std::cin >> choice;
+            std::cin.ignore();
+
+            DatabaseManager dbManager("database/bank.db");
 
             switch (choice) {
-                case 1:
-                    displayLoanHistory(dbManager);
+                case 1: {
+                    std::cout << "\n=== Histórico de Empréstimos ===\n\n";
+                    auto companies = dbManager.getAllCompanies();
+                    if (companies.empty()) {
+                        std::cout << "Nenhum registro encontrado.\n";
+                    } else {
+                        displayHeader();
+                        for (const auto& company : companies) {
+                            displayCompany(company);
+                        }
+                    }
                     break;
+                }
                 case 2:
+                    showAdvancedMenu();
+                    break;
+                case 3:
                     addNewLoan(dbManager);
                     break;
-                case 0:
-                    std::cout << "\nSaindo do sistema...\n";
+                case 4:
+                    checkBalance(dbManager);
                     break;
+                case 5:
+                    depositMoney(dbManager);
+                    break;
+                case 0:
+                    std::cout << "\nSaindo...\n";
+                    return 0;
                 default:
                     std::cout << "\nOpção inválida!\n";
             }
-        } while (choice != 0);
+        }
 
         return 0;
     } catch (const std::exception& e) {

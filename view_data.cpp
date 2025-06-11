@@ -14,6 +14,7 @@
 #endif
 #include "database/DatabaseManager.h"
 #include "models/Company.h"
+#include "advanced_features.cpp"
 
 // Função para configurar o console para UTF-8
 bool setupConsole() {
@@ -49,16 +50,18 @@ void displayCompany(const Company& company) {
 }
 
 void displayLog() {
-    std::cout << "\n=== Log de Atividades ===\n\n";
-    std::ifstream logFile("log.txt");
-    if (logFile.is_open()) {
-        std::string line;
-        while (std::getline(logFile, line)) {
-            std::cout << line << "\n";
-        }
-        logFile.close();
-    } else {
-        std::cout << "Nenhum registro encontrado no log.\n";
+    std::cout << "\n=== Log de Empréstimos ===\n\n";
+    DatabaseManager dbManager("database/bank.db");
+    auto companies = dbManager.getAllCompanies();
+    
+    if (companies.empty()) {
+        std::cout << "Nenhum empréstimo registrado.\n";
+        return;
+    }
+
+    displayHeader();
+    for (const auto& company : companies) {
+        displayCompany(company);
     }
 }
 
@@ -70,40 +73,46 @@ int main() {
             return 1;
         }
 
-        std::cout << "\n=== Visualização de Dados ===\n\n";
-        std::cout << "1. Ver histórico de empréstimos\n";
-        std::cout << "2. Ver log de atividades\n";
-        std::cout << "0. Sair\n";
-        std::cout << "Escolha uma opção: ";
+        while (true) {
+            std::cout << "\n=== Sistema Bancário ===\n\n";
+            std::cout << "1. Ver histórico de empréstimos\n";
+            std::cout << "2. Ver log de atividades\n";
+            std::cout << "3. Funcionalidades Avançadas\n";
+            std::cout << "0. Sair\n";
+            std::cout << "Escolha uma opção: ";
 
-        int choice;
-        std::cin >> choice;
-        std::cin.ignore();
+            int choice;
+            std::cin >> choice;
+            std::cin.ignore();
 
-        DatabaseManager dbManager("bank.db");
+            DatabaseManager dbManager("database/bank.db");
 
-        switch (choice) {
-            case 1: {
-                std::cout << "\n=== Histórico de Empréstimos ===\n\n";
-                auto companies = dbManager.getAllCompanies();
-                if (companies.empty()) {
-                    std::cout << "Nenhum registro encontrado.\n";
-                } else {
-                    displayHeader();
-                    for (const auto& company : companies) {
-                        displayCompany(company);
+            switch (choice) {
+                case 1: {
+                    std::cout << "\n=== Histórico de Empréstimos ===\n\n";
+                    auto companies = dbManager.getAllCompanies();
+                    if (companies.empty()) {
+                        std::cout << "Nenhum registro encontrado.\n";
+                    } else {
+                        displayHeader();
+                        for (const auto& company : companies) {
+                            displayCompany(company);
+                        }
                     }
+                    break;
                 }
-                break;
+                case 2:
+                    displayLog();
+                    break;
+                case 3:
+                    showAdvancedMenu();
+                    break;
+                case 0:
+                    std::cout << "\nSaindo...\n";
+                    return 0;
+                default:
+                    std::cout << "\nOpção inválida!\n";
             }
-            case 2:
-                displayLog();
-                break;
-            case 0:
-                std::cout << "\nSaindo...\n";
-                break;
-            default:
-                std::cout << "\nOpção inválida!\n";
         }
 
         return 0;
