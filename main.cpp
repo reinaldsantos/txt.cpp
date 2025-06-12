@@ -18,6 +18,7 @@
 #include "database/DatabaseManager.h"
 #include "models/Company.h"
 #include "advanced_features.h"
+#include "task_list.h"
 
 // Função para configurar o console para UTF-8
 bool setupConsole() {
@@ -69,14 +70,26 @@ void displayLog() {
 void addNewLoan(DatabaseManager& dbManager) {
     std::cout << "\n=== Novo Empréstimo ===\n\n";
     
-    std::string name, cnpj, location, employeeName;
+    std::string name, nipc, location, employeeName;
     double amount;
     
     std::cout << "Nome da empresa: ";
     std::getline(std::cin, name);
     
-    std::cout << "CNPJ: ";
-    std::getline(std::cin, cnpj);
+    std::cout << "NIPC: ";
+    std::getline(std::cin, nipc);
+    
+    // Verifica se a empresa já existe
+    Company existingCompany = dbManager.getCompany(nipc);
+    if (!existingCompany.getName().empty()) {
+        std::cout << "\nEmpresa com este NIPC já existe!\n";
+        std::cout << "Nome: " << existingCompany.getName() << "\n";
+        std::cout << "Local: " << existingCompany.getLocation() << "\n";
+        std::cout << "Funcionário: " << existingCompany.getEmployeeName() << "\n";
+        std::cout << "Valor atual: R$ " << std::fixed << std::setprecision(2) << existingCompany.getLoanAmount() << "\n";
+        std::cout << "Saldo atual: R$ " << std::fixed << std::setprecision(2) << existingCompany.getBalance() << "\n";
+        return;
+    }
     
     std::cout << "Local: ";
     std::getline(std::cin, location);
@@ -93,7 +106,7 @@ void addNewLoan(DatabaseManager& dbManager) {
     std::cin.ignore();
 
     // Cria uma nova empresa e salva no banco de dados
-    Company newCompany(name, cnpj, location, employeeName, amount);
+    Company newCompany(name, nipc, location, employeeName, amount);
     if (dbManager.createCompany(newCompany)) {
         std::cout << "\nEmpréstimo registrado com sucesso!\n";
     } else {
@@ -104,11 +117,11 @@ void addNewLoan(DatabaseManager& dbManager) {
 void checkBalance(DatabaseManager& dbManager) {
     std::cout << "\n=== Consultar Saldo ===\n\n";
     
-    std::string cnpj;
-    std::cout << "CNPJ da empresa: ";
-    std::getline(std::cin, cnpj);
+    std::string nipc;
+    std::cout << "NIPC da empresa: ";
+    std::getline(std::cin, nipc);
     
-    double balance = dbManager.getCompanyBalance(cnpj);
+    double balance = dbManager.getCompanyBalance(nipc);
     if (balance >= 0) {
         std::cout << "\nSaldo atual: R$ " << std::fixed << std::setprecision(2) << balance << "\n";
     } else {
@@ -119,11 +132,11 @@ void checkBalance(DatabaseManager& dbManager) {
 void depositMoney(DatabaseManager& dbManager) {
     std::cout << "\n=== Depositar Dinheiro ===\n\n";
     
-    std::string cnpj;
+    std::string nipc;
     double amount;
     
-    std::cout << "CNPJ da empresa: ";
-    std::getline(std::cin, cnpj);
+    std::cout << "NIPC da empresa: ";
+    std::getline(std::cin, nipc);
     
     std::cout << "Valor a depositar: R$ ";
     while (!(std::cin >> amount) || amount <= 0) {
@@ -133,10 +146,10 @@ void depositMoney(DatabaseManager& dbManager) {
     }
     std::cin.ignore();
     
-    if (dbManager.updateCompanyBalance(cnpj, amount)) {
+    if (dbManager.updateCompanyBalance(nipc, amount)) {
         std::cout << "\nDepósito realizado com sucesso!\n";
         std::cout << "Novo saldo: R$ " << std::fixed << std::setprecision(2) 
-                  << dbManager.getCompanyBalance(cnpj) << "\n";
+                  << dbManager.getCompanyBalance(nipc) << "\n";
     } else {
         std::cout << "\nErro ao realizar depósito. Empresa não encontrada!\n";
     }
@@ -164,6 +177,7 @@ int main() {
             std::cout << "3. Adicionar novo empréstimo\n";
             std::cout << "4. Consultar saldo\n";
             std::cout << "5. Depositar dinheiro\n";
+            std::cout << "6. Gerenciar Tarefas\n";
             std::cout << "0. Sair\n";
             std::cout << "Escolha uma opção: ";
 
@@ -199,20 +213,21 @@ int main() {
                 case 5:
                     depositMoney(dbManager);
                     break;
+                case 6:
+                    taskManagement();
+                    break;
                 case 0:
-                    std::cout << "\nSaindo...\n";
+                    std::cout << "\nSaindo do sistema...\n";
                     return 0;
                 default:
                     std::cout << "\nOpção inválida!\n";
             }
-        }
 
-        return 0;
+            std::cout << "\nPressione Enter para continuar...";
+            std::cin.get();
+        }
     } catch (const std::exception& e) {
-        std::cerr << "Erro inesperado: " << e.what() << "\n";
-        return 1;
-    } catch (...) {
-        std::cerr << "Erro desconhecido ocorreu.\n";
+        std::cerr << "Erro: " << e.what() << std::endl;
         return 1;
     }
 }

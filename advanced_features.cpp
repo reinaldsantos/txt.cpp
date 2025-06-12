@@ -190,11 +190,11 @@ void simulateLoan() {
 // Função para menu de funcionalidades avançadas
 void showAdvancedMenu() {
     while (true) {
-        std::cout << "\n=== Funcionalidades Avançadas ===\n";
+        std::cout << "\n=== Menu Avançado ===\n\n";
         std::cout << "1. Análise de Crédito\n";
         std::cout << "2. Simulação de Empréstimo\n";
         std::cout << "3. Análise de Tendências\n";
-        std::cout << "0. Voltar ao Menu Principal\n";
+        std::cout << "0. Voltar\n";
         std::cout << "Escolha uma opção: ";
         
         int choice;
@@ -205,14 +205,14 @@ void showAdvancedMenu() {
             case 1: {
                 std::cout << "\n=== Análise de Crédito ===\n\n";
                 
-                std::string name, cnpj, location, employeeName;
+                std::string name, nipc, location, employeeName;
                 double amount;
                 
                 std::cout << "Nome da empresa: ";
                 std::getline(std::cin, name);
                 
-                std::cout << "CNPJ: ";
-                std::getline(std::cin, cnpj);
+                std::cout << "NIPC: ";
+                std::getline(std::cin, nipc);
                 
                 std::cout << "Local: ";
                 std::getline(std::cin, location);
@@ -229,7 +229,7 @@ void showAdvancedMenu() {
                 std::cin.ignore();
 
                 // Cria uma empresa temporária para análise
-                Company tempCompany(name, cnpj, location, employeeName, amount);
+                Company tempCompany(name, nipc, location, employeeName, amount);
                 
                 // Obtém todas as empresas do banco para análise comparativa
                 DatabaseManager dbManager("database/bank.db");
