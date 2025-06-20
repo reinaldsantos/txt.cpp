@@ -1,0 +1,10 @@
+=== Sistema Bancário ===
+3. Adicionar novo empréstimo
+...
+7. Relatórios
+
+=== Relatórios ===
+2. Empresas inadimplentes
+
+--- Empresas Inadimplentes ---
+Empresa Teste   ...   Valor: 1000.00   Saldo: -1000.00 

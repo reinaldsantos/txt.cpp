@@ -36,6 +36,18 @@ public:
     std::vector<Task> getCompanyTasks(const std::string& companyNipc);
     std::vector<Task> getAllTasks();
     
+    // Autenticação de usuário
+    bool authenticateUser(const std::string& username, const std::string& password);
+    // Criação de usuário (para inicialização/admin)
+    bool createUser(const std::string& username, const std::string& password);
+    // Busca empresa por NIPC ou nome
+    Company getCompanyByNipcOrName(const std::string& nipcOrName);
+    // Relatórios
+    double getTotalEmprestado();
+    double getTotalRecebido();
+    double getSaldoGeral();
+    std::vector<Company> getEmpresasInadimplentes();
+    
     bool isConnectedToDatabase() const { return isConnected; }
 };
 

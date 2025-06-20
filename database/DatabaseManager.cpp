@@ -1,6 +1,7 @@
 #include "DatabaseManager.h"
 #include <iostream>
 #include <fstream>
+#include <cstring>
 
 DatabaseManager::DatabaseManager(const std::string& path) : dbPath(path), db(nullptr), isConnected(false) {
     initializeDatabase();
@@ -66,7 +67,7 @@ bool DatabaseManager::migrateCnpjToNipc() {
             return false;
         }
         
-        std::cout << "Migração de cnpj para nipc realizada com sucesso!" << std::endl;
+        return true;
     }
     
     return true;
@@ -102,6 +103,12 @@ bool DatabaseManager::createTables() {
                      "created_at INTEGER NOT NULL,"
                      "completed_at INTEGER,"
                      "FOREIGN KEY (company_nipc) REFERENCES companies(nipc)"
+                     ");"
+                     
+                     "CREATE TABLE IF NOT EXISTS users ("
+                     "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                     "username TEXT NOT NULL UNIQUE,"
+                     "password TEXT NOT NULL"
                      ");";
     
     char* errMsg = nullptr;
@@ -119,15 +126,8 @@ bool DatabaseManager::createTables() {
 bool DatabaseManager::createCompany(const Company& company) {
     if (!isConnected) return false;
     
-    std::cout << "[DEBUG] Salvando empresa:" << std::endl
-              << "  Nome: '" << company.getName() << "'" << std::endl
-              << "  NIPC: '" << company.getNIPC() << "'" << std::endl
-              << "  Local: '" << company.getLocation() << "'" << std::endl
-              << "  Funcionário: '" << company.getEmployeeName() << "'" << std::endl
-              << "  Valor: " << company.getLoanAmount() << std::endl;
-    
-    const char* sql = "INSERT INTO companies (name, nipc, location, employee_name, loan_amount, loan_approved) "
-                     "VALUES (?, ?, ?, ?, ?, ?);";
+    const char* sql = "INSERT INTO companies (name, nipc, location, employee_name, loan_amount, loan_approved, balance) "
+                     "VALUES (?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt;
     
     int rc = sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr);
@@ -142,6 +142,7 @@ bool DatabaseManager::createCompany(const Company& company) {
     sqlite3_bind_text(stmt, 4, company.getEmployeeName().c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_double(stmt, 5, company.getLoanAmount());
     sqlite3_bind_int(stmt, 6, company.isLoanApproved() ? 1 : 0);
+    sqlite3_bind_double(stmt, 7, company.getBalance());
     
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -151,7 +152,6 @@ bool DatabaseManager::createCompany(const Company& company) {
         return false;
     }
     
-    std::cout << "[DEBUG] Empresa salva com sucesso!" << std::endl;
     return true;
 }
 
@@ -211,9 +211,6 @@ bool DatabaseManager::deleteCompany(const std::string& companyName) {
         std::ofstream logFile("log.txt", std::ios::trunc);
         if (logFile.is_open()) {
             logFile.close();
-            std::cout << "\nHistórico de acessos limpo com sucesso!\n";
-        } else {
-            std::cout << "\nErro ao limpar histórico de acessos.\n";
         }
     }
     
@@ -419,4 +416,127 @@ std::vector<Task> DatabaseManager::getAllTasks() {
     
     sqlite3_finalize(stmt);
     return tasks;
+}
+
+// Autenticação de usuário
+bool DatabaseManager::authenticateUser(const std::string& username, const std::string& password) {
+    if (!isConnected) return false;
+    const char* sql = "SELECT password FROM users WHERE username = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+    bool authenticated = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* dbPassword = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (dbPassword && password == dbPassword) authenticated = true;
+    }
+    sqlite3_finalize(stmt);
+    return authenticated;
+}
+
+// Criação de usuário
+bool DatabaseManager::createUser(const std::string& username, const std::string& password) {
+    if (!isConnected) return false;
+    const char* sql = "INSERT OR IGNORE INTO users (username, password) VALUES (?, ?);";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return false;
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, password.c_str(), -1, SQLITE_STATIC);
+    int rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return rc == SQLITE_DONE;
+}
+
+// Busca empresa por NIPC ou nome
+Company DatabaseManager::getCompanyByNipcOrName(const std::string& nipcOrName) {
+    if (!isConnected) return Company();
+    const char* sql = "SELECT name, nipc, location, employee_name, loan_amount, loan_approved, balance FROM companies WHERE (nipc = ? OR name = ?) AND (deleted = 0 OR deleted IS NULL) LIMIT 1;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return Company();
+    sqlite3_bind_text(stmt, 1, nipcOrName.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, nipcOrName.c_str(), -1, SQLITE_STATIC);
+    Company company;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* nipc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* location = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* employeeName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        double loanAmount = sqlite3_column_double(stmt, 4);
+        bool loanApproved = sqlite3_column_int(stmt, 5) != 0;
+        double balance = sqlite3_column_double(stmt, 6);
+        if (name && nipc && location && employeeName) {
+            company = Company(name, nipc, location, employeeName, loanAmount);
+            if (!loanApproved) {
+                *(bool*)((char*)&company + sizeof(std::string)*4 + sizeof(double)) = false;
+            }
+            // Set balance if method exists
+            *(double*)((char*)&company + sizeof(std::string)*4 + sizeof(double) + sizeof(bool)) = balance;
+        }
+    }
+    sqlite3_finalize(stmt);
+    return company;
+}
+
+// Relatórios
+// Total emprestado
+double DatabaseManager::getTotalEmprestado() {
+    if (!isConnected) return 0.0;
+    const char* sql = "SELECT SUM(loan_amount) FROM companies WHERE deleted = 0 OR deleted IS NULL;";
+    sqlite3_stmt* stmt;
+    double total = 0.0;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            total = sqlite3_column_double(stmt, 0);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return total;
+}
+// Total recebido
+// Considera o saldo positivo como recebido
+// (pode ser ajustado conforme lógica de negócio)
+double DatabaseManager::getTotalRecebido() {
+    if (!isConnected) return 0.0;
+    const char* sql = "SELECT SUM(balance) FROM companies WHERE deleted = 0 OR deleted IS NULL;";
+    sqlite3_stmt* stmt;
+    double total = 0.0;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            total = sqlite3_column_double(stmt, 0);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return total;
+}
+// Saldo geral
+// (total recebido - total emprestado)
+double DatabaseManager::getSaldoGeral() {
+    return getTotalRecebido() - getTotalEmprestado();
+}
+// Empresas inadimplentes (saldo devedor > 0)
+std::vector<Company> DatabaseManager::getEmpresasInadimplentes() {
+    std::vector<Company> inadimplentes;
+    if (!isConnected) return inadimplentes;
+    const char* sql = "SELECT name, nipc, location, employee_name, loan_amount, loan_approved, balance FROM companies WHERE (deleted = 0 OR deleted IS NULL) AND balance < 0;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) return inadimplentes;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* nipc = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* location = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* employeeName = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        double loanAmount = sqlite3_column_double(stmt, 4);
+        bool loanApproved = sqlite3_column_int(stmt, 5) != 0;
+        double balance = sqlite3_column_double(stmt, 6);
+        if (name && nipc && location && employeeName) {
+            Company company(name, nipc, location, employeeName, loanAmount);
+            if (!loanApproved) {
+                *(bool*)((char*)&company + sizeof(std::string)*4 + sizeof(double)) = false;
+            }
+            *(double*)((char*)&company + sizeof(std::string)*4 + sizeof(double) + sizeof(bool)) = balance;
+            inadimplentes.push_back(company);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return inadimplentes;
 } 

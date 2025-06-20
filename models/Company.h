@@ -14,6 +14,8 @@ private:
     double balance;
 
 public:
+    Company() : name(""), nipc(""), location(""), employeeName(""), loanAmount(0.0), loanApproved(true), balance(0.0) {}
+    
     Company(const std::string& name, const std::string& nipc, const std::string& location, 
             const std::string& employeeName, double loanAmount);
     
